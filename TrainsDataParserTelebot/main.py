@@ -6,11 +6,7 @@ def main():
     train_parser = TrainParser()
 
     try:
-        result = train_parser.have_places('Гомель', 'Минск', '2026-03-29', '683Б')
-        if result:
-            print('Места есть')
-        else:
-            print('Мест нет')
+        print(train_parser.get_train_info('Гомель', 'Минск', '2026-03-29', '749Б'))
     except IncorrectRequestDataException:
         print('IncorrectRequestDataException')
     except IncorrectTrainNumberException:
