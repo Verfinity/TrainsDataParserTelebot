@@ -1,9 +1,12 @@
 from fake_useragent import FakeUserAgent
 from bs4 import BeautifulSoup
+from bs4 import Tag
 from exceptions import *
 from dotenv import load_dotenv
 from os import getenv
 import aiohttp
+
+from train_request_info import TrainRequestInfo
 
 
 class TrainParser:
@@ -15,12 +18,12 @@ class TrainParser:
         cleaned_str = ''.join(char for char in time_str if char != '\r' and char != '\n' and char != ' ')
         return cleaned_str
 
-    async def __get_train_container(self, from_city: str, to_city: str, date: str, train_number: str) -> BeautifulSoup:
+    async def __get_train_container(self, train_request_info: TrainRequestInfo) -> Tag:
         user_agent = FakeUserAgent()
         headers = {
             'User-Agent': user_agent.random
         }
-        request_url = f"{self.__base_url}/?from={from_city}&to={to_city}&date={date}"
+        request_url = f"{self.__base_url}/?from={train_request_info.from_city}&to={train_request_info.to_city}&date={train_request_info.date}"
 
         response_text = ''
         async with aiohttp.ClientSession() as session:
@@ -34,14 +37,14 @@ class TrainParser:
         if trains_container is None:
             raise IncorrectRequestDataException
 
-        current_train = trains_container.find('div', class_='sch-table__row', attrs={'data-train-number': train_number})
+        current_train = trains_container.find('div', class_='sch-table__row', attrs={'data-train-number': train_request_info.train_number})
         if current_train is None:
             raise IncorrectTrainNumberException
 
         return current_train
 
-    async def get_train_info(self, from_city: str, to_city: str, date: str, train_number: str) -> dict:
-        current_train = await self.__get_train_container(from_city, to_city, date, train_number)
+    async def get_train_full_info(self, train_request_info: TrainRequestInfo) -> dict:
+        current_train = await self.__get_train_container(train_request_info)
 
         train_info_container = current_train.find('div', class_='sch-table__row_2')
 
@@ -58,13 +61,13 @@ class TrainParser:
         if have_no_places_div:
             have_places = False
 
-        train_info = {
-            'train_number': train_number,
-            'from_time': self.__clear_time_str(from_time),
-            'from_city': from_city,
-            'to_time': self.__clear_time_str(to_time),
-            'to_city': to_city,
-            'train_duration': train_duration,
-            'have_places': have_places
+        train_full_info = {
+            'train-number': train_request_info.train_number,
+            'from-time': self.__clear_time_str(from_time),
+            'from-city': from_city,
+            'to-time': self.__clear_time_str(to_time),
+            'to-city': to_city,
+            'train-duration': train_duration,
+            'have-places': have_places
         }
-        return train_info
+        return train_full_info
