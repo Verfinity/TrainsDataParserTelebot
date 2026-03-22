@@ -2,6 +2,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram import Router
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 
 from exceptions import *
 from train_parser import TrainParser
@@ -10,6 +12,7 @@ from train_request_info import TrainRequestInfo
 
 
 router = Router()
+scheduler = AsyncIOScheduler()
 
 
 async def send_exception(message: Message, exception_text: str) -> None:
@@ -27,7 +30,24 @@ async def send_train_full_info(message: Message, full_train_info: dict) -> None:
 
 @router.message(CommandStart())
 async def command_start(message: Message) -> None:
-    await message.answer("Hello there!")
+    hello_message = """
+Этот бот создан для автоматической проверки наличия билетов на поезда белорусской железной дороги.
+    
+Вот основные комманды:
+/add - добавить поезд в список.
+Синтаксис: /add *Откуда* *Куда* *Дата в формате гггг-мм-дд* *Номер поезда*
+    
+/list - получить список поездов
+    
+/remove - удалить поезд из списка
+Синтаксис: /remove *Номер поезда в списке*
+    
+/start_check - запустить автоматическую проверку списка
+Синтаксис: /start_check *Интервал проверки в минутах*
+    
+/stop_check - отключить автоматическую проверку списка
+    """
+    await message.answer(hello_message)
 
 
 async def get_trains_list(state: FSMContext) -> list:
@@ -119,5 +139,54 @@ async def remove_train_from_list(message: Message, state: FSMContext) -> None:
         trains_list.pop(remove_train_id)
         await state.update_data(trains_list=trains_list)
         await message.answer('Поезд успешно удалён')
+
+        if len(trains_list) == 0:
+            await stop_check_trains(message, state)
     except IndexError:
         await message.answer('Поезда с таким номером нет в списке')
+
+
+@router.message(Command('start_check'))
+async def start_check_trains(message: Message, state: FSMContext) -> None:
+    trains_list = await get_trains_list(state)
+
+    if len(trains_list) == 0:
+        await message.answer('Список поездов пуст')
+        return
+
+    message_data = message.text.split()
+
+    if len(message_data) != 2:
+        await message.answer('Некорректный формат запроса')
+        return
+
+    interval = None
+    try:
+        interval = int(message_data[1])
+    except ValueError:
+        await message.answer('Необходимо ввести число')
+        return
+
+    state_data = await state.get_data()
+    try:
+        schedule_job_id = state_data['schedule_job_id']
+        scheduler.remove_job(schedule_job_id)
+    except KeyError:
+        pass
+
+    schedule_job_id = scheduler.add_job(show_list, 'interval', seconds=interval, args=[message, state]).id
+    if not scheduler.running:
+        scheduler.start()
+    await state.update_data(schedule_job_id=schedule_job_id)
+    await message.answer('Автоматическая проверка списка поездов запущена')
+
+
+@router.message(Command('stop_check'))
+async def stop_check_trains(message: Message, state: FSMContext) -> None:
+    state_data = await state.get_data()
+    try:
+        schedule_job_id = state_data['schedule_job_id']
+        scheduler.remove_job(schedule_job_id)
+    except KeyError:
+        pass
+    await message.answer('Автоматическая проверка списка поездов остановлена')
