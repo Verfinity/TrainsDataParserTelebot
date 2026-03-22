@@ -1,29 +1,34 @@
-from project_data_loader import ProjectDataLoader
 from fake_useragent import FakeUserAgent
-import requests
 from bs4 import BeautifulSoup
 from exceptions import *
+from dotenv import load_dotenv
+from os import getenv
+import aiohttp
 
 
 class TrainParser:
     def __init__(self):
-        self.__base_url = ProjectDataLoader.get_project_data()['train_data_parse_path']
+        load_dotenv()
+        self.__base_url = getenv('TRAIN_DATA_PARSE_PATH')
 
     def __clear_time_str(self, time_str) -> str:
         cleaned_str = ''.join(char for char in time_str if char != '\r' and char != '\n' and char != ' ')
         return cleaned_str
 
-    def __get_train_container(self, from_city: str, to_city: str, date: str, train_number: str) -> BeautifulSoup:
+    async def __get_train_container(self, from_city: str, to_city: str, date: str, train_number: str) -> BeautifulSoup:
         user_agent = FakeUserAgent()
         headers = {
             'User-Agent': user_agent.random
         }
         request_url = f"{self.__base_url}/?from={from_city}&to={to_city}&date={date}"
 
-        response = requests.get(request_url, headers=headers)
-        if response.status_code != 200:
-            raise BadRequestException
-        soup = BeautifulSoup(response.text, 'lxml')
+        response_text = ''
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=request_url, headers=headers) as response:
+                if response.status != 200:
+                    raise BadRequestException
+                response_text = await response.text()
+        soup = BeautifulSoup(response_text, 'lxml')
 
         trains_container = soup.find('div', class_='sch-table__body js-sort-body')
         if trains_container is None:
@@ -35,8 +40,8 @@ class TrainParser:
 
         return current_train
 
-    def get_train_info(self, from_city: str, to_city: str, date: str, train_number: str) -> dict:
-        current_train = self.__get_train_container(from_city, to_city, date, train_number)
+    async def get_train_info(self, from_city: str, to_city: str, date: str, train_number: str) -> dict:
+        current_train = await self.__get_train_container(from_city, to_city, date, train_number)
 
         train_info_container = current_train.find('div', class_='sch-table__row_2')
 
