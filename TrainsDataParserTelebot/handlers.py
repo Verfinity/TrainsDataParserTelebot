@@ -9,6 +9,7 @@ from exceptions import *
 from train_parser import TrainParser
 from train_request_info_serializer import TrainRequestInfoSerializer
 from train_request_info import TrainRequestInfo
+from train_full_info import TrainFullInfo
 
 
 router = Router()
@@ -19,13 +20,36 @@ async def send_exception(message: Message, exception_text: str) -> None:
     await message.answer(f"Ошибка: {exception_text}")
 
 
-async def send_train_full_info(message: Message, full_train_info: dict) -> None:
-    send_str = f"""Номер поезда: {full_train_info['train-number']}\n
-Отправление: {full_train_info['from-city']}, {full_train_info['from-time']}\n
-Прибытие: {full_train_info['to-city']}, {full_train_info['to-time']}\n
-Время поездки: {full_train_info['train-duration']}\n
-Наличие мест: {'Есть' if full_train_info['have-places'] else 'Нет'}"""
+async def send_train_full_info(message: Message, full_train_info: TrainFullInfo) -> None:
+    send_str = f"""Номер поезда: {full_train_info.train_number}\n
+Отправление: {full_train_info.from_city}, {full_train_info.from_time}\n
+Прибытие: {full_train_info.to_city}, {full_train_info.to_time}\n
+Время поездки: {full_train_info.train_duration}\n
+Наличие мест: {'Есть' if full_train_info.have_places else 'Нет'}"""
     await message.answer(send_str)
+
+
+async def remove_train(message: Message, state: FSMContext, train_index: int) -> None:
+    trains_list = await get_trains_list(state)
+
+    try:
+        trains_list.pop(train_index)
+        await state.update_data(trains_list=trains_list)
+        await message.answer('Поезд успешно удалён')
+
+        if len(trains_list) == 0:
+            await stop_check_trains(message, state)
+    except IndexError:
+        await message.answer('Поезда с таким номером нет в списке')
+
+
+async def remove_schedule_job(state: FSMContext) -> None:
+    state_data = await state.get_data()
+    try:
+        schedule_job_id = state_data['schedule_job_id']
+        scheduler.remove_job(schedule_job_id)
+    except KeyError:
+        pass
 
 
 @router.message(CommandStart())
@@ -43,7 +67,7 @@ async def command_start(message: Message) -> None:
 Синтаксис: /remove *Номер поезда в списке*
     
 /start_check - запустить автоматическую проверку списка
-Синтаксис: /start_check *Интервал проверки в минутах*
+Синтаксис: /start_check *Интервал проверки в минутах (не менее 30)*
     
 /stop_check - отключить автоматическую проверку списка
     """
@@ -63,15 +87,15 @@ async def get_trains_list(state: FSMContext) -> list:
 
 @router.message(Command('add'))
 async def command_add(message: Message, state: FSMContext) -> None:
-    # Train info format: from_city, to_city, date, train_number
+    # Train request info format: from_city, to_city, date, train_number
 
     train_request_info_list = message.text.split()[1::]
     if len(train_request_info_list) != 4:
         await send_exception(message, 'Неверное количество данных')
         return
 
-    train_parser = TrainParser()
     try:
+        train_parser = TrainParser()
         await message.answer('Отправка запроса...')
         train_request_info = TrainRequestInfo(train_request_info_list[0], train_request_info_list[1], train_request_info_list[2], train_request_info_list[3])
         train_full_info = await train_parser.get_train_full_info(train_request_info)
@@ -98,6 +122,7 @@ async def show_list(message: Message, state: FSMContext) -> None:
         await message.answer('Список поездов пуст')
         return
 
+    await message.answer('Проверка списка поездов:')
     for index, train in enumerate(trains_list):
         try:
             await message.answer('Отправка запроса...')
@@ -112,7 +137,8 @@ async def show_list(message: Message, state: FSMContext) -> None:
             break
         except:
             await message.answer(f'Номер поезда в списке: {index}')
-            await message.answer('Данные поезда устарели, поезд удалён из списка')
+            await message.answer('Данные поезда устарели')
+            await remove_train(message, state, index)
 
 
 @router.message(Command('remove'))
@@ -135,15 +161,7 @@ async def remove_train_from_list(message: Message, state: FSMContext) -> None:
         await message.answer('Необходимо ввести числовой номер')
         return
 
-    try:
-        trains_list.pop(remove_train_id)
-        await state.update_data(trains_list=trains_list)
-        await message.answer('Поезд успешно удалён')
-
-        if len(trains_list) == 0:
-            await stop_check_trains(message, state)
-    except IndexError:
-        await message.answer('Поезда с таким номером нет в списке')
+    await remove_train(message, state, remove_train_id)
 
 
 @router.message(Command('start_check'))
@@ -167,26 +185,18 @@ async def start_check_trains(message: Message, state: FSMContext) -> None:
         await message.answer('Необходимо ввести число')
         return
 
-    state_data = await state.get_data()
-    try:
-        schedule_job_id = state_data['schedule_job_id']
-        scheduler.remove_job(schedule_job_id)
-    except KeyError:
-        pass
+    if interval < 0:
+        await message.answer('Количество минут не может быть менее 30')
+        return
 
-    schedule_job_id = scheduler.add_job(show_list, 'interval', seconds=interval, args=[message, state]).id
-    if not scheduler.running:
-        scheduler.start()
+    await remove_schedule_job(state)
+
+    schedule_job_id = scheduler.add_job(show_list, 'interval', minutes=interval, args=[message, state]).id
     await state.update_data(schedule_job_id=schedule_job_id)
     await message.answer('Автоматическая проверка списка поездов запущена')
 
 
 @router.message(Command('stop_check'))
 async def stop_check_trains(message: Message, state: FSMContext) -> None:
-    state_data = await state.get_data()
-    try:
-        schedule_job_id = state_data['schedule_job_id']
-        scheduler.remove_job(schedule_job_id)
-    except KeyError:
-        pass
+    await remove_schedule_job(state)
     await message.answer('Автоматическая проверка списка поездов остановлена')

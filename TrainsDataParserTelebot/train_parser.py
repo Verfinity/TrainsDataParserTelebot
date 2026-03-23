@@ -7,6 +7,7 @@ from os import getenv
 import aiohttp
 
 from train_request_info import TrainRequestInfo
+from train_full_info import TrainFullInfo
 
 
 class TrainParser:
@@ -43,7 +44,7 @@ class TrainParser:
 
         return current_train
 
-    async def get_train_full_info(self, train_request_info: TrainRequestInfo) -> dict:
+    async def get_train_full_info(self, train_request_info: TrainRequestInfo) -> TrainFullInfo:
         current_train = await self.__get_train_container(train_request_info)
 
         train_info_container = current_train.find('div', class_='sch-table__row_2')
@@ -61,13 +62,12 @@ class TrainParser:
         if have_no_places_div:
             have_places = False
 
-        train_full_info = {
-            'train-number': train_request_info.train_number,
-            'from-time': self.__clear_time_str(from_time),
-            'from-city': from_city,
-            'to-time': self.__clear_time_str(to_time),
-            'to-city': to_city,
-            'train-duration': train_duration,
-            'have-places': have_places
-        }
+        train_full_info = TrainFullInfo(
+            train_number=train_request_info.train_number,
+            from_time=self.__clear_time_str(from_time),
+            from_city=from_city,
+            to_time=self.__clear_time_str(to_time),
+            to_city=to_city,
+            train_duration=train_duration,
+            have_places=have_places)
         return train_full_info
