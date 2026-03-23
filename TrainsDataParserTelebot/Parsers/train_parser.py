@@ -1,13 +1,13 @@
 from fake_useragent import FakeUserAgent
 from bs4 import BeautifulSoup
 from bs4 import Tag
-from exceptions import *
+from Exceptions.exceptions import *
 from dotenv import load_dotenv
 from os import getenv
 import aiohttp
 
-from train_request_info import TrainRequestInfo
-from train_full_info import TrainFullInfo
+from TrainInfo.train_request_info import TrainRequestInfo
+from TrainInfo.train_full_info import TrainFullInfo
 
 
 class TrainParser:

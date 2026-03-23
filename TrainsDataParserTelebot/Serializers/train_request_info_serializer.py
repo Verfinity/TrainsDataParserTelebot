@@ -1,4 +1,4 @@
-from train_request_info import TrainRequestInfo
+from TrainInfo.train_request_info import TrainRequestInfo
 
 
 class TrainRequestInfoSerializer:

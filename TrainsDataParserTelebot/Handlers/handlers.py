@@ -5,11 +5,11 @@ from aiogram.types import Message
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
-from exceptions import *
-from train_parser import TrainParser
-from train_request_info_serializer import TrainRequestInfoSerializer
-from train_request_info import TrainRequestInfo
-from train_full_info import TrainFullInfo
+from Exceptions.exceptions import *
+from Parsers.train_parser import TrainParser
+from Serializers.train_request_info_serializer import TrainRequestInfoSerializer
+from TrainInfo.train_request_info import TrainRequestInfo
+from TrainInfo.train_full_info import TrainFullInfo
 
 
 router = Router()
@@ -185,7 +185,7 @@ async def start_check_trains(message: Message, state: FSMContext) -> None:
         await message.answer('Необходимо ввести число')
         return
 
-    if interval < 0:
+    if interval < 30:
         await message.answer('Количество минут не может быть менее 30')
         return
 
