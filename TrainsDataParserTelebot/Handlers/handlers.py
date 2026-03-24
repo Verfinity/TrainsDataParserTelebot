@@ -134,7 +134,7 @@ async def show_list(message: Message, state: FSMContext) -> None:
             await send_train_full_info(message, train_full_info)
         except BadRequestException:
             await message.answer('Не удалось обратиться к сайту')
-        except IncorrectRequestDataException, IncorrectTrainNumberException:
+        except GetTrainDataException:
             await message.answer('Данные поезда устарели')
             await remove_train(message, state, index)
 

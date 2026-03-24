@@ -1,7 +1,10 @@
-class IncorrectRequestDataException(Exception):
+class GetTrainDataException(Exception):
     pass
 
-class IncorrectTrainNumberException(Exception):
+class IncorrectRequestDataException(GetTrainDataException):
+    pass
+
+class IncorrectTrainNumberException(GetTrainDataException):
     pass
 
 class BadRequestException(Exception):
