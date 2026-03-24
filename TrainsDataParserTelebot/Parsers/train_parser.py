@@ -27,11 +27,14 @@ class TrainParser:
         request_url = f"{self.__base_url}/?from={train_request_info.from_city}&to={train_request_info.to_city}&date={train_request_info.date}"
 
         response_text = ''
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url=request_url, headers=headers) as response:
-                if response.status != 200:
-                    raise BadRequestException
-                response_text = await response.text()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url=request_url, headers=headers) as response:
+                    if response.status != 200:
+                        raise BadRequestException
+                    response_text = await response.text()
+        except:
+            raise BadRequestException
         soup = BeautifulSoup(response_text, 'lxml')
 
         trains_container = soup.find('div', class_='sch-table__body js-sort-body')
@@ -64,6 +67,7 @@ class TrainParser:
 
         train_full_info = TrainFullInfo(
             train_number=train_request_info.train_number,
+            date=train_request_info.date,
             from_time=self.__clear_time_str(from_time),
             from_city=from_city,
             to_time=self.__clear_time_str(to_time),

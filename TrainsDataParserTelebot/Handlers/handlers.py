@@ -22,6 +22,7 @@ async def send_exception(message: Message, exception_text: str) -> None:
 
 async def send_train_full_info(message: Message, full_train_info: TrainFullInfo) -> None:
     send_str = f"""Номер поезда: {full_train_info.train_number}\n
+Дата: {full_train_info.date}\n
 Отправление: {full_train_info.from_city}, {full_train_info.from_time}\n
 Прибытие: {full_train_info.to_city}, {full_train_info.to_time}\n
 Время поездки: {full_train_info.train_duration}\n
@@ -58,7 +59,7 @@ async def command_start(message: Message) -> None:
 Этот бот создан для автоматической проверки наличия билетов на поезда белорусской железной дороги.
     
 Вот основные комманды:
-/add - добавить поезд в список.
+/add - добавить поезд в список
 Синтаксис: /add *Откуда* *Куда* *Дата в формате гггг-мм-дд* *Номер поезда*
     
 /list - получить список поездов
@@ -67,7 +68,7 @@ async def command_start(message: Message) -> None:
 Синтаксис: /remove *Номер поезда в списке*
     
 /start_check - запустить автоматическую проверку списка
-Синтаксис: /start_check *Интервал проверки в минутах (не менее 30)*
+Синтаксис: /start_check *Интервал проверки в минутах (не менее 20)*
     
 /stop_check - отключить автоматическую проверку списка
     """
@@ -125,18 +126,15 @@ async def show_list(message: Message, state: FSMContext) -> None:
     await message.answer('Проверка списка поездов:')
     for index, train in enumerate(trains_list):
         try:
-            await message.answer('Отправка запроса...')
+            await message.answer(f'Отправка запроса для поезда с номером {index}...')
             train_parser = TrainParser()
             train_request_info = TrainRequestInfoSerializer.deserialize(train)
             train_full_info = await train_parser.get_train_full_info(train_request_info)
 
-            await message.answer(f'Номер поезда в списке: {index}')
             await send_train_full_info(message, train_full_info)
         except BadRequestException:
             await message.answer('Не удалось обратиться к сайту')
-            break
-        except:
-            await message.answer(f'Номер поезда в списке: {index}')
+        except IncorrectRequestDataException, IncorrectTrainNumberException:
             await message.answer('Данные поезда устарели')
             await remove_train(message, state, index)
 
@@ -185,8 +183,8 @@ async def start_check_trains(message: Message, state: FSMContext) -> None:
         await message.answer('Необходимо ввести число')
         return
 
-    if interval < 30:
-        await message.answer('Количество минут не может быть менее 30')
+    if interval < 20:
+        await message.answer('Количество минут не может быть менее 20')
         return
 
     await remove_schedule_job(state)
